@@ -22,7 +22,8 @@ public class RemoveFromCartHandler : IRequestHandler<RemoveFromCartCommand>
         if (!_currentUser.IsAuthenticated || string.IsNullOrEmpty(_currentUser.UserId))
             throw new BadRequestException("User not authenticated.");
 
-        var userId = Guid.Parse(_currentUser.UserId);
+        if (!Guid.TryParse(_currentUser.UserId, out var userId))
+            throw new BadRequestException("Authenticated user id is invalid.");
 
         var cart = await _context.Carts
             .Include(c => c.CartItems)

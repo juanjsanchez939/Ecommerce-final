@@ -1,5 +1,6 @@
 using Ecommerce.Application.Common.DTOs;
 using Ecommerce.Domain.Enums;
+using FluentValidation;
 using MediatR;
 
 namespace Ecommerce.Application.Features.Orders.Queries;
@@ -41,4 +42,13 @@ public class OrderItemDto
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public decimal Subtotal { get; set; }
+}
+
+public class GetOrdersValidator : AbstractValidator<GetOrdersQuery>
+{
+    public GetOrdersValidator()
+    {
+        RuleFor(x => x.PageNumber).InclusiveBetween(1, 10_000);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+    }
 }

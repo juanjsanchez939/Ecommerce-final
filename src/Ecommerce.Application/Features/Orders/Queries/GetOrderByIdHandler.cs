@@ -19,6 +19,9 @@ public class GetOrderByIdHandler : IRequestHandler<GetOrderByIdQuery, OrderDetai
 
     public async Task<OrderDetailDto> Handle(GetOrderByIdQuery request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.IsAuthenticated || string.IsNullOrWhiteSpace(_currentUser.UserId))
+            throw new BadRequestException("User not authenticated.");
+
         var order = await _context.Orders
             .Include(o => o.OrderItems)
             .FirstOrDefaultAsync(o => o.Id == request.Id, cancellationToken);
@@ -26,9 +29,10 @@ public class GetOrderByIdHandler : IRequestHandler<GetOrderByIdQuery, OrderDetai
         if (order is null)
             throw new NotFoundException(nameof(Order), request.Id);
 
-        if (!_currentUser.IsAdmin && _currentUser.UserId is not null)
+        if (!_currentUser.IsAdmin)
         {
-            var currentUserId = Guid.Parse(_currentUser.UserId);
+            if (!Guid.TryParse(_currentUser.UserId, out var currentUserId))
+                throw new BadRequestException("Authenticated user id is invalid.");
             if (order.UserId != currentUserId)
                 throw new NotFoundException(nameof(Order), request.Id);
         }

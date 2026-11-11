@@ -23,7 +23,8 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
         if (!_currentUser.IsAuthenticated || string.IsNullOrEmpty(_currentUser.UserId))
             throw new BadRequestException("User not authenticated.");
 
-        var userId = Guid.Parse(_currentUser.UserId);
+        if (!Guid.TryParse(_currentUser.UserId, out var userId))
+            throw new BadRequestException("Authenticated user id is invalid.");
 
         var cart = await _context.Carts
             .Include(c => c.CartItems)
@@ -52,6 +53,9 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
 
                 if (product is null)
                     throw new NotFoundException(nameof(Product), cartItem.ProductId);
+
+                if (cartItem.Quantity <= 0)
+                    throw new BadRequestException("Cart item quantity must be positive.");
 
                 if (product.Stock < cartItem.Quantity)
                     throw new BadRequestException($"Insufficient stock for product: {product.Name}");

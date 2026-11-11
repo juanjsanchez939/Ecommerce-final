@@ -1,4 +1,5 @@
 using Ecommerce.Application.Common.DTOs;
+using FluentValidation;
 using MediatR;
 
 namespace Ecommerce.Application.Features.Products.Queries;
@@ -24,4 +25,13 @@ public class ProductDto
     public Guid CategoryId { get; set; }
     public string CategoryName { get; set; }
     public DateTime CreatedAt { get; set; }
+}
+
+public class GetProductsValidator : AbstractValidator<GetProductsQuery>
+{
+    public GetProductsValidator()
+    {
+        RuleFor(x => x.PageNumber).InclusiveBetween(1, 10_000);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+    }
 }

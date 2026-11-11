@@ -1,4 +1,5 @@
 using Ecommerce.Application.Common.DTOs;
+using Ecommerce.Application.Common.Exceptions;
 using Ecommerce.Application.Common.Interfaces;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +19,18 @@ public class GetOrdersHandler : IRequestHandler<GetOrdersQuery, PagedResult<Orde
 
     public async Task<PagedResult<OrderDto>> Handle(GetOrdersQuery request, CancellationToken cancellationToken)
     {
+        if (!_currentUser.IsAuthenticated || string.IsNullOrWhiteSpace(_currentUser.UserId))
+            throw new BadRequestException("User not authenticated.");
+
         var currentUserId = _currentUser.UserId;
         var isAdmin = _currentUser.IsAdmin;
 
         var query = _context.Orders.AsQueryable();
 
-        if (!isAdmin && !string.IsNullOrEmpty(currentUserId))
+        if (!isAdmin)
         {
-            var userId = Guid.Parse(currentUserId);
+            if (!Guid.TryParse(currentUserId, out var userId))
+                throw new BadRequestException("Authenticated user id is invalid.");
             query = query.Where(o => o.UserId == userId);
         }
 
