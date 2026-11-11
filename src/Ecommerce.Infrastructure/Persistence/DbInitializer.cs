@@ -1,18 +1,25 @@
 using Ecommerce.Domain.Entities;
 using Ecommerce.Domain.Enums;
+using Microsoft.Extensions.Configuration;
 
 namespace Ecommerce.Infrastructure.Persistence;
 
 public static class DbInitializer
 {
-    public static async Task SeedAsync(ApplicationDbContext context)
+    public static async Task SeedAsync(ApplicationDbContext context, IConfiguration configuration)
     {
         if (context.Users.Any())
             return;
 
+        var adminEmail = configuration["AdminSeed:Email"];
+        var adminPassword = configuration["AdminSeed:Password"];
+        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
+            throw new InvalidOperationException(
+                "Admin seed credentials are not configured. Set AdminSeed:Email and AdminSeed:Password using user-secrets or environment variables before running with --seed.");
+
         var adminUser = new User(
-            "admin@test.com",
-            BCrypt.Net.BCrypt.HashPassword("123456"),
+            adminEmail,
+            BCrypt.Net.BCrypt.HashPassword(adminPassword),
             "Admin",
             "User",
             UserRole.Admin);

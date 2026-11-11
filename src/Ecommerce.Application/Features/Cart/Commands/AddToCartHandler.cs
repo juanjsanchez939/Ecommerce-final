@@ -22,7 +22,8 @@ public class AddToCartHandler : IRequestHandler<AddToCartCommand>
         if (!_currentUser.IsAuthenticated || string.IsNullOrEmpty(_currentUser.UserId))
             throw new BadRequestException("User not authenticated.");
 
-        var userId = Guid.Parse(_currentUser.UserId);
+        if (!Guid.TryParse(_currentUser.UserId, out var userId))
+            throw new BadRequestException("Authenticated user id is invalid.");
 
         var product = await _context.Products
             .FirstOrDefaultAsync(p => p.Id == request.ProductId, cancellationToken);
@@ -33,9 +34,6 @@ public class AddToCartHandler : IRequestHandler<AddToCartCommand>
         if (!product.IsActive)
             throw new BadRequestException("Product is not available.");
 
-        if (product.Stock < request.Quantity)
-            throw new BadRequestException("Insufficient stock.");
-
         var cart = await _context.Carts
             .Include(c => c.CartItems)
             .FirstOrDefaultAsync(c => c.UserId == userId, cancellationToken);
@@ -45,6 +43,12 @@ public class AddToCartHandler : IRequestHandler<AddToCartCommand>
             cart = new DomainEntities.Cart(userId);
             await _context.Carts.AddAsync(cart, cancellationToken);
         }
+
+        var existingQuantity = cart.CartItems
+            .Where(item => item.ProductId == product.Id)
+            .Sum(item => item.Quantity);
+        if (existingQuantity + request.Quantity > product.Stock)
+            throw new BadRequestException("Insufficient stock for the requested cart quantity.");
 
         var cartItem = new DomainEntities.CartItem(product.Id, product.Name, product.Price.Amount, request.Quantity, product.Price.Currency);
         cart.AddItem(cartItem);

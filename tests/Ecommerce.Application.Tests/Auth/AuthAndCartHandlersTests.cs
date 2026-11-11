@@ -263,6 +263,20 @@ public class CartHandlersTests : IDisposable
     }
 
     [Fact]
+    public async Task Handle_ShouldRejectAccumulatedCartQuantityAboveStock()
+    {
+        var product = await SeedProductAsync(stock: 5);
+        var handler = new AddToCartHandler(_context, _currentUserMock.Object);
+
+        await handler.Handle(new AddToCartCommand { ProductId = product.Id, Quantity = 4 }, CancellationToken.None);
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
+            handler.Handle(new AddToCartCommand { ProductId = product.Id, Quantity = 2 }, CancellationToken.None));
+
+        Assert.Contains("Insufficient stock", exception.Message);
+    }
+
+    [Fact]
     public async Task Handle_ShouldRemoveItemFromCart()
     {
         var product = await SeedProductAsync();

@@ -52,25 +52,23 @@ public class Program
         builder.Services.AddApplicationServices();
         builder.Services.AddInfrastructureServices(builder.Configuration);
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 
-if (!builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
-    throw new InvalidOperationException(
-        "Cors:AllowedOrigins is empty in production. Configure at least one origin in appsettings.Production.json.");
+        if (!builder.Environment.IsDevelopment() && allowedOrigins.Length == 0)
+            throw new InvalidOperationException(
+                "Cors:AllowedOrigins is empty in production. Configure at least one origin in appsettings.Production.json.");
 
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("Default", policy =>
-    {
-        if (allowedOrigins.Length > 0)
-            policy.WithOrigins(allowedOrigins);
-        else
-            policy.AllowAnyOrigin();
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("Default", policy =>
+            {
+                if (allowedOrigins.Length > 0)
+                    policy.WithOrigins(allowedOrigins);
 
-        policy.AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
+                policy.AllowAnyMethod()
+                      .AllowAnyHeader();
+            });
+        });
 
         var app = builder.Build();
 
@@ -79,7 +77,7 @@ builder.Services.AddCors(options =>
             using var scope = app.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             context.Database.Migrate();
-            await DbInitializer.SeedAsync(context);
+            await DbInitializer.SeedAsync(context, builder.Configuration);
             Console.WriteLine("Database migrated and seeded successfully.");
         }
 

@@ -1,6 +1,7 @@
 using Ecommerce.Application.Common.Exceptions;
 using Ecommerce.Application.Common.Interfaces;
 using Ecommerce.Application.Features.Orders.Commands;
+using Ecommerce.Application.Features.Orders.Queries;
 using Ecommerce.Domain.Entities;
 using Ecommerce.Domain.Enums;
 using Ecommerce.Domain.ValueObjects;
@@ -117,6 +118,42 @@ public class OrderHandlersTests
         var exception = await Assert.ThrowsAsync<BadRequestException>(
             () => handler.Handle(command, CancellationToken.None));
         Assert.Equal("User not authenticated.", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetOrders_ShouldRejectUnauthenticatedUser()
+    {
+        var context = CreateContext();
+        var mockUser = CreateCurrentUserMock(Guid.NewGuid(), isAuthenticated: false);
+        var handler = new GetOrdersHandler(context, mockUser.Object);
+
+        var exception = await Assert.ThrowsAsync<BadRequestException>(() =>
+            handler.Handle(new GetOrdersQuery(), CancellationToken.None));
+
+        Assert.Equal("User not authenticated.", exception.Message);
+    }
+
+    [Fact]
+    public async Task GetOrders_ShouldOnlyReturnCurrentUsersOrders()
+    {
+        var userId = Guid.NewGuid();
+        var otherUserId = Guid.NewGuid();
+        var context = CreateContext();
+        var mockUser = CreateCurrentUserMock(userId);
+        var address = new Address("1 Main St", "City", "State", "Country", "12345");
+
+        var ownOrder = new Order(userId, address);
+        ownOrder.AddItem(new OrderItem(Guid.NewGuid(), "Own item", new Money(10m), 1));
+        var otherOrder = new Order(otherUserId, address);
+        otherOrder.AddItem(new OrderItem(Guid.NewGuid(), "Other item", new Money(20m), 1));
+        context.Orders.AddRange(ownOrder, otherOrder);
+        await context.SaveChangesAsync();
+
+        var handler = new GetOrdersHandler(context, mockUser.Object);
+        var result = await handler.Handle(new GetOrdersQuery(), CancellationToken.None);
+
+        var order = Assert.Single(result.Items);
+        Assert.Equal(ownOrder.Id, order.Id);
     }
 
     [Fact]
