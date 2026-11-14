@@ -16,7 +16,6 @@ public class CartItem
 
     public CartItem(Guid productId, string productName, decimal unitPrice, int quantity = 1, string currency = "USD")
     {
-        Id = Guid.NewGuid();
         ProductId = productId;
         ProductName = productName;
         UnitPrice = unitPrice;

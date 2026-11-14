@@ -27,6 +27,7 @@ public class ExceptionMiddleware
             var logLevel = ex switch
             {
                 ValidationException or BadRequestException or NotFoundException => LogLevel.Warning,
+                PaymentServiceUnavailableException => LogLevel.Warning,
                 _ => LogLevel.Error
             };
 
@@ -45,6 +46,7 @@ public class ExceptionMiddleware
             ValidationException ex => (HttpStatusCode.BadRequest, string.Join("; ", ex.Errors.Select(e => e.ErrorMessage))),
             BadRequestException ex => (HttpStatusCode.BadRequest, ex.Message),
             NotFoundException ex => (HttpStatusCode.NotFound, ex.Message),
+            PaymentServiceUnavailableException ex => (HttpStatusCode.ServiceUnavailable, ex.Message),
             _ => (HttpStatusCode.InternalServerError, "An internal server error occurred.")
         };
 

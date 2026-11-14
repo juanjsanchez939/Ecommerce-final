@@ -8,14 +8,18 @@ public static class DbInitializer
 {
     public static async Task SeedAsync(ApplicationDbContext context, IConfiguration configuration)
     {
-        if (context.Users.Any())
+        if (context.Users.Any(u => u.Role == UserRole.Admin))
             return;
 
+        var hasUsers = context.Users.Any();
         var adminEmail = configuration["AdminSeed:Email"];
         var adminPassword = configuration["AdminSeed:Password"];
         if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
             throw new InvalidOperationException(
                 "Admin seed credentials are not configured. Set AdminSeed:Email and AdminSeed:Password using user-secrets or environment variables before running with --seed.");
+
+        if (context.Users.Any(u => u.Email == adminEmail))
+            throw new InvalidOperationException("AdminSeed:Email is already used by another account. Configure a different email.");
 
         var adminUser = new User(
             adminEmail,
@@ -28,6 +32,12 @@ public static class DbInitializer
 
         var adminCart = new Cart(adminUser.Id);
         context.Carts.Add(adminCart);
+
+        if (hasUsers)
+        {
+            await context.SaveChangesAsync();
+            return;
+        }
 
         var electronics = new Category("Electronics", "Electronic devices and accessories");
         var clothing = new Category("Clothing", "Men and women clothing");
