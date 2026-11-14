@@ -49,6 +49,11 @@ namespace Ecommerce.Infrastructure.Migrations
                     b.Property<Guid>("CartId")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("TEXT");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("TEXT");
 
