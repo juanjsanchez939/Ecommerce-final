@@ -27,7 +27,14 @@ public class OrderHandlersTests
         var mock = new Mock<ICurrentUserService>();
         mock.Setup(m => m.IsAuthenticated).Returns(isAuthenticated);
         mock.Setup(m => m.UserId).Returns(userId.ToString());
-        mock.Setup(m => m.IsAdmin).Returns(false);
+        return mock;
+    }
+
+    private static Mock<IPaymentClient> CreatePaymentClientMock(bool approved = true)
+    {
+        var mock = new Mock<IPaymentClient>();
+        mock.Setup(m => m.ProcessPaymentAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentResult(approved, "tx-test"));
         return mock;
     }
 
@@ -71,7 +78,7 @@ public class OrderHandlersTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -90,7 +97,7 @@ public class OrderHandlersTests
             .FirstOrDefaultAsync(o => o.Id == orderId);
         Assert.NotNull(order);
         Assert.Equal(userId, order.UserId);
-        Assert.Equal(OrderStatus.Pending, order.Status);
+        Assert.Equal(OrderStatus.Paid, order.Status);
         Assert.Single(order.OrderItems);
         Assert.Equal(product.Id, order.OrderItems.First().ProductId);
         Assert.Equal(2, order.OrderItems.First().Quantity);
@@ -104,7 +111,8 @@ public class OrderHandlersTests
         var context = CreateContext();
         var mockUser = CreateCurrentUserMock(userId, isAuthenticated: false);
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
+
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -171,7 +179,7 @@ public class OrderHandlersTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -206,7 +214,7 @@ public class OrderHandlersTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -244,7 +252,7 @@ public class OrderHandlersTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -282,7 +290,7 @@ public class OrderHandlersTests
         context.Carts.Add(cart);
         await context.SaveChangesAsync();
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",
@@ -327,7 +335,7 @@ public class OrderHandlersTests
 
         var originalStock = product.Stock;
 
-        var handler = new CreateOrderHandler(context, mockUser.Object);
+        var handler = new CreateOrderHandler(context, mockUser.Object, CreatePaymentClientMock().Object);
         var command = new CreateOrderCommand
         {
             Street = "123 Main St",

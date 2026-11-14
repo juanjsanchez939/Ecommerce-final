@@ -1,6 +1,7 @@
 using Ecommerce.Application.Common.Exceptions;
 using Ecommerce.Application.Common.Interfaces;
 using Ecommerce.Domain.Entities;
+using Ecommerce.Domain.Enums;
 using Ecommerce.Domain.ValueObjects;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +12,13 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUser;
+    private readonly IPaymentClient _paymentClient;
 
-    public CreateOrderHandler(IApplicationDbContext context, ICurrentUserService currentUser)
+    public CreateOrderHandler(IApplicationDbContext context, ICurrentUserService currentUser, IPaymentClient paymentClient)
     {
         _context = context;
         _currentUser = currentUser;
+        _paymentClient = paymentClient;
     }
 
     public async Task<Guid> Handle(CreateOrderCommand request, CancellationToken cancellationToken)
@@ -82,6 +85,17 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
+
+        return await ChargeOrderAsync(order, cancellationToken);
+    }
+
+    private async Task<Guid> ChargeOrderAsync(Order order, CancellationToken cancellationToken)
+    {
+        // The order is already saved as Pending. If PaymentService is down, the exception leaves it Pending.
+        var payment = await _paymentClient.ProcessPaymentAsync(order.Id, order.TotalAmount, cancellationToken);
+
+        order.UpdateStatus(payment.Approved ? OrderStatus.Paid : OrderStatus.PaymentRejected);
+        await _context.SaveChangesAsync(cancellationToken);
 
         return order.Id;
     }

@@ -24,6 +24,13 @@ public static class InfrastructureServiceRegistration
         services.AddScoped<ITokenService, TokenService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
 
+        services.AddHttpClient<IPaymentClient, PaymentClient>(client =>
+        {
+            client.BaseAddress = new Uri(configuration["PaymentService:BaseUrl"]
+                ?? throw new InvalidOperationException("PaymentService:BaseUrl is not configured."));
+            client.Timeout = TimeSpan.FromSeconds(10);
+        });
+
         services.AddHttpContextAccessor();
 
         var secretKey = configuration["JwtSettings:SecretKey"];
