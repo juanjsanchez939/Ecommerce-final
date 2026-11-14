@@ -25,6 +25,8 @@ dotnet test .\Ecommerce.sln
 
 El administrador de prueba es el email y contraseña que configuraste. `--seed` aplica las migraciones SQLite y crea ese Admin si no existe ninguno; si el email ya pertenece a un cliente, falla sin modificarlo. Si ya hay usuarios, no agrega el catálogo de ejemplo. La base predeterminada es `src\Ecommerce.Api\Ecommerce.db`; configurá `ConnectionStrings:DefaultConnection` para cambiarla. No se eliminan bases existentes.
 
+Al actualizar carritos anteriores, la migración completa las monedas vacías con la moneda actual del producto y conserva las que ya estén informadas. El esquema anterior no guardaba la moneda histórica, por lo que no se puede garantizar que coincida si cambió el producto. Si falta el producto o su moneda, la migración de recuperación falla y revierte sus cambios para que se revisen los datos; las migraciones anteriores ya aplicadas permanecen.
+
 ## Levantar los dos servicios
 
 En una terminal, desde la raíz `Ecommerce-final`:
