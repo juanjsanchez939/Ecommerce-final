@@ -389,7 +389,7 @@ public class OrderHandlersTests
     }
 
     [Fact]
-    public async Task Handle_ShouldCancelOrderRestoreStockAndKeepCart_WhenPaymentServiceUnavailable()
+    public async Task Handle_ShouldKeepOrderPendingAndStockReserved_WhenPaymentServiceUnavailable()
     {
         // Arrange
         var userId = Guid.NewGuid();
@@ -414,12 +414,13 @@ public class OrderHandlersTests
         var command = new CreateOrderCommand { Street = "1", City = "C", State = "S", Country = "Co", ZipCode = "1" };
 
         // Act & Assert
-        await Assert.ThrowsAsync<PaymentServiceUnavailableException>(
+        var exception = await Assert.ThrowsAsync<PaymentServiceUnavailableException>(
             () => handler.Handle(command, CancellationToken.None));
 
         var order = await context.Orders.FirstAsync();
-        Assert.Equal(OrderStatus.Cancelled, order.Status);
-        Assert.Equal(10, (await context.Products.FindAsync(product.Id))!.Stock);
+        Assert.Contains(order.Id.ToString(), exception.Message);
+        Assert.Equal(OrderStatus.Pending, order.Status);
+        Assert.Equal(8, (await context.Products.FindAsync(product.Id))!.Stock);
         Assert.Single((await context.Carts.Include(c => c.CartItems).FirstAsync()).CartItems);
     }
 

@@ -95,10 +95,10 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
         {
             payment = await _paymentClient.ProcessPaymentAsync(order.Id, order.TotalAmount, cancellationToken);
         }
-        catch (PaymentServiceUnavailableException)
+        catch (PaymentServiceUnavailableException ex)
         {
-            await ReleaseOrderAsync(order, OrderStatus.Cancelled, cancellationToken);
-            throw;
+            throw new PaymentServiceUnavailableException(
+                $"Payment result is unknown for order {order.Id}. The order remains Pending with stock reserved; do not retry before reconciliation.", ex);
         }
 
         if (!payment.Approved)
