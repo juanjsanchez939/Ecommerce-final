@@ -74,8 +74,6 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
                 order.AddItem(orderItem);
             }
 
-            cart.Clear();
-
             await _context.Orders.AddAsync(order, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -86,17 +84,58 @@ public class CreateOrderHandler : IRequestHandler<CreateOrderCommand, Guid>
             throw;
         }
 
-        return await ChargeOrderAsync(order, cancellationToken);
+        return await ChargeOrderAsync(order, cart, cancellationToken);
     }
 
-    private async Task<Guid> ChargeOrderAsync(Order order, CancellationToken cancellationToken)
+    private async Task<Guid> ChargeOrderAsync(Order order, Ecommerce.Domain.Entities.Cart cart, CancellationToken cancellationToken)
     {
-        // The order is already saved as Pending. If PaymentService is down, the exception leaves it Pending.
-        var payment = await _paymentClient.ProcessPaymentAsync(order.Id, order.TotalAmount, cancellationToken);
+        // The payment call runs outside any open transaction; the order is already saved as Pending.
+        PaymentResult payment;
+        try
+        {
+            payment = await _paymentClient.ProcessPaymentAsync(order.Id, order.TotalAmount, cancellationToken);
+        }
+        catch (PaymentServiceUnavailableException)
+        {
+            await ReleaseOrderAsync(order, OrderStatus.Cancelled, cancellationToken);
+            throw;
+        }
 
-        order.UpdateStatus(payment.Approved ? OrderStatus.Paid : OrderStatus.PaymentRejected);
+        if (!payment.Approved)
+        {
+            await ReleaseOrderAsync(order, OrderStatus.PaymentRejected, cancellationToken);
+            throw new BadRequestException("Payment was rejected.");
+        }
+
+        order.UpdateStatus(OrderStatus.Paid);
+        cart.Clear();
         await _context.SaveChangesAsync(cancellationToken);
 
         return order.Id;
+    }
+
+    private async Task ReleaseOrderAsync(Order order, OrderStatus status, CancellationToken cancellationToken)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            foreach (var item in order.OrderItems)
+            {
+                var product = await _context.Products
+                    .FirstAsync(p => p.Id == item.ProductId, cancellationToken);
+
+                product.IncreaseStock(item.Quantity);
+            }
+
+            order.UpdateStatus(status);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }

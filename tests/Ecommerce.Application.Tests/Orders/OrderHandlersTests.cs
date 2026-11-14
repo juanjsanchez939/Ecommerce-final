@@ -354,6 +354,75 @@ public class OrderHandlersTests
         Assert.Equal(originalStock - 3, productAfter.Stock);
     }
 
+    [Fact]
+    public async Task Handle_ShouldRestoreStockAndKeepCart_WhenPaymentRejected()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var context = CreateContext();
+        var mockUser = CreateCurrentUserMock(userId);
+        var paymentMock = CreatePaymentClientMock(approved: false);
+
+        var category = new Category("Test Category", "Description");
+        var product = new Product("Test Product", "Description", new Money(10m), 10, "url", category.Id);
+        var cart = new Cart(userId);
+        cart.AddItem(new CartItem(product.Id, product.Name, 10m, 2));
+
+        context.Categories.Add(category);
+        context.Products.Add(product);
+        context.Users.Add(new User("test@test.com", "hash", "Test", "User"));
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var handler = new CreateOrderHandler(context, mockUser.Object, paymentMock.Object);
+        var command = new CreateOrderCommand { Street = "1", City = "C", State = "S", Country = "Co", ZipCode = "1" };
+
+        // Act & Assert
+        var exception = await Assert.ThrowsAsync<BadRequestException>(
+            () => handler.Handle(command, CancellationToken.None));
+        Assert.Equal("Payment was rejected.", exception.Message);
+
+        var order = await context.Orders.FirstAsync();
+        Assert.Equal(OrderStatus.PaymentRejected, order.Status);
+        Assert.Equal(10, (await context.Products.FindAsync(product.Id))!.Stock);
+        Assert.Single((await context.Carts.Include(c => c.CartItems).FirstAsync()).CartItems);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldCancelOrderRestoreStockAndKeepCart_WhenPaymentServiceUnavailable()
+    {
+        // Arrange
+        var userId = Guid.NewGuid();
+        var context = CreateContext();
+        var mockUser = CreateCurrentUserMock(userId);
+        var paymentMock = new Mock<IPaymentClient>();
+        paymentMock.Setup(m => m.ProcessPaymentAsync(It.IsAny<Guid>(), It.IsAny<decimal>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new PaymentServiceUnavailableException("down"));
+
+        var category = new Category("Test Category", "Description");
+        var product = new Product("Test Product", "Description", new Money(10m), 10, "url", category.Id);
+        var cart = new Cart(userId);
+        cart.AddItem(new CartItem(product.Id, product.Name, 10m, 2));
+
+        context.Categories.Add(category);
+        context.Products.Add(product);
+        context.Users.Add(new User("test@test.com", "hash", "Test", "User"));
+        context.Carts.Add(cart);
+        await context.SaveChangesAsync();
+
+        var handler = new CreateOrderHandler(context, mockUser.Object, paymentMock.Object);
+        var command = new CreateOrderCommand { Street = "1", City = "C", State = "S", Country = "Co", ZipCode = "1" };
+
+        // Act & Assert
+        await Assert.ThrowsAsync<PaymentServiceUnavailableException>(
+            () => handler.Handle(command, CancellationToken.None));
+
+        var order = await context.Orders.FirstAsync();
+        Assert.Equal(OrderStatus.Cancelled, order.Status);
+        Assert.Equal(10, (await context.Products.FindAsync(product.Id))!.Stock);
+        Assert.Single((await context.Carts.Include(c => c.CartItems).FirstAsync()).CartItems);
+    }
+
     public class TestDbContext : DbContext, IApplicationDbContext
     {
         public DbSet<Product> Products => Set<Product>();
